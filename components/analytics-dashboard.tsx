@@ -337,7 +337,7 @@ export function AnalyticsDashboard() {
         </TabsContent>
         <TabsContent value="clinical">
           {/* Clinical metrics content would go here */}
-        </Tabs-Content>
+        </TabsContent>
         <TabsContent value="operations">
           {/* Operations content would go here */}
         </TabsContent>
