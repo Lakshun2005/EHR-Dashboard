@@ -44,6 +44,10 @@ export function ClinicalAIAssistant() {
   const [medicalHistory, setMedicalHistory] = useState("")
   const [currentMedications, setCurrentMedications] = useState("")
   const [vitals, setVitals] = useState("")
+  const [bp, setBp] = useState("")
+  const [hr, setHr] = useState("")
+  const [temp, setTemp] = useState("")
+  const [rr, setRr] = useState("")
   const [newMedication, setNewMedication] = useState("")
 
   const handleFetchPatient = async () => {
@@ -106,19 +110,117 @@ export function ClinicalAIAssistant() {
               gender: selectedPatient.gender,
             },
             symptoms: symptoms.split(",").map((s) => s.trim()),
-            vitals: vitals ? JSON.parse(vitals) : {},
+            vitals: { bp, hr, temp, rr },
             medicalHistory: medicalHistory.split(",").map((h) => h.trim()),
             currentMedications: currentMedications.split(",").map((m) => m.trim()),
           },
         }),
       })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "An unknown error occurred." }))
+        throw new Error(errorData.error || "Failed to generate assessment.")
+      }
       const result = await response.json()
       setAssessment(result.assessment)
+      toast.success("AI Assessment generated successfully.")
     } catch (error) {
       console.error("Error:", error)
+      toast.error(error.message || "An error occurred while generating the assessment.")
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDiagnosticAssistance = async () => {
+    if (!selectedPatient) {
+      toast.error("Please load a patient before getting diagnostic assistance.")
+      return
+    }
+    setLoading(true)
+    setDiagnosticSuggestions("")
+    try {
+      const response = await fetch("/api/clinical-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "diagnostic_assistance",
+          data: {
+            symptoms: symptoms.split(",").map(s => s.trim()),
+            patientHistory: medicalHistory,
+          },
+        }),
+      })
+      if (!response.ok) throw new Error("Failed to get diagnostic assistance.")
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error("No response body")
+
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        setDiagnosticSuggestions((prev) => prev + chunk)
+      }
+      toast.success("Diagnostic suggestions generated.")
+    } catch (error) {
+      console.error("Error:", error)
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDrugInteractionCheck = async () => {
+    if (!selectedPatient || !newMedication) {
+      toast.error("Please load a patient and enter a new medication to check.")
+      return
+    }
+    setLoading(true)
+    setDrugInteractions(null)
+    try {
+      const response = await fetch("/api/clinical-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "drug_interaction",
+          data: {
+            medications: currentMedications.split(",").map(m => m.trim()),
+            newMedication: newMedication,
+          },
+        }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "An unknown error occurred." }))
+        throw new Error(errorData.error || "Failed to check drug interactions.")
+      }
+      const result = await response.json()
+      setDrugInteractions(result.interactions)
+      toast.success("Drug interaction check complete.")
+    } catch (error) {
+      console.error("Error:", error)
+      toast.error(error.message || "An error occurred while checking interactions.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportAssessment = () => {
+    if (!assessment) {
+      toast.error("No assessment to export.")
+      return
+    }
+    const assessmentString = JSON.stringify(assessment, null, 2)
+    const blob = new Blob([assessmentString], { type: "application/json;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `Clinical-Assessment-${selectedPatient?.medicalRecordNumber || 'patient'}-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success("Assessment exported as a JSON file.")
   }
 
   // Other handlers (handleDrugInteractionCheck, handleDiagnosticAssistance) would be refactored similarly
@@ -214,24 +316,162 @@ export function ClinicalAIAssistant() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vitals">Vital Signs (JSON format)</Label>
-                <Textarea
-                  id="vitals"
-                  value={vitals}
-                  onChange={(e) => setVitals(e.target.value)}
-                  placeholder='{"bp_systolic": 140, "bp_diastolic": 90, "heart_rate": 85, "temperature": 98.6}'
-                  rows={2}
-                  disabled={!selectedPatient}
-                />
+                <Label>Vital Signs</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input value={bp} onChange={(e) => setBp(e.target.value)} placeholder="BP (e.g., 120/80)" disabled={!selectedPatient} />
+                  <Input value={hr} onChange={(e) => setHr(e.target.value)} placeholder="HR (e.g., 72 bpm)" disabled={!selectedPatient} />
+                  <Input value={temp} onChange={(e) => setTemp(e.target.value)} placeholder="Temp (e.g., 98.6°F)" disabled={!selectedPatient} />
+                  <Input value={rr} onChange={(e) => setRr(e.target.value)} placeholder="RR (e.g., 16)" disabled={!selectedPatient} />
+                </div>
               </div>
               <Button onClick={handleAIAssessment} disabled={loading || !selectedPatient} className="w-full">
                 {loading ? "Analyzing..." : "Generate Clinical Assessment"}
               </Button>
             </CardContent>
           </Card>
-          {/* Assessment results rendering */}
+          {assessment && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>AI Assessment Results</CardTitle>
+                  <Button variant="outline" size="sm" onClick={handleExportAssessment}>
+                    Export as JSON
+                  </Button>
+                </div>
+                <CardDescription>
+                  Based on the provided data, the AI suggests the following:
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert variant={
+                    assessment.riskLevel === 'critical' ? 'destructive' :
+                    assessment.riskLevel === 'high' ? 'destructive' :
+                    assessment.riskLevel === 'medium' ? 'default' :
+                    'default'
+                }>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Risk Level: {assessment.riskLevel.toUpperCase()}</AlertTitle>
+                </Alert>
+
+                <div>
+                  <h4 className="font-semibold">Primary Concerns:</h4>
+                  <ul className="list-disc list-inside">
+                    {assessment.primaryConcerns.map((concern, i) => <li key={i}>{concern}</li>)}
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold">Recommendations:</h4>
+                  {assessment.recommendations.map((rec, i) => (
+                    <div key={i} className="p-2 mt-2 border rounded-lg">
+                      <p><strong>Action:</strong> {rec.action} <Badge variant="secondary">{rec.priority}</Badge></p>
+                      <p className="text-sm text-muted-foreground">{rec.rationale}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <h4 className="font-semibold">Differential Diagnosis:</h4>
+                  {assessment.differentialDiagnosis.map((diag, i) => (
+                     <div key={i} className="p-2 mt-2 border rounded-lg">
+                      <p><strong>Condition:</strong> {diag.condition} <Badge variant="outline">{diag.probability}</Badge></p>
+                      <p className="text-sm">Supporting Factors: {diag.supportingFactors.join(', ')}</p>
+                    </div>
+                  ))}
+                </div>
+
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
-        {/* Other tabs would be refactored similarly */}
+
+        <TabsContent value="interactions" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Drug Interaction Checker</CardTitle>
+              <CardDescription>Check for interactions between the patient's current medications and a new one.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Current Medications (Loaded)</Label>
+                <Textarea value={currentMedications} readOnly className="bg-muted/50" rows={2} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-medication">New Medication to Check</Label>
+                <Input
+                  id="new-medication"
+                  value={newMedication}
+                  onChange={(e) => setNewMedication(e.target.value)}
+                  placeholder="e.g., Lisinopril"
+                  disabled={!selectedPatient}
+                />
+              </div>
+              <Button onClick={handleDrugInteractionCheck} disabled={loading || !selectedPatient} className="w-full">
+                {loading ? "Checking..." : "Check for Interactions"}
+              </Button>
+            </CardContent>
+          </Card>
+          {drugInteractions && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Interaction Results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {drugInteractions.interactions.length === 0 ? (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>No significant interactions found.</AlertTitle>
+                  </Alert>
+                ) : (
+                  <div className="space-y-4">
+                    {drugInteractions.interactions.map((interaction, i) => (
+                      <div key={i} className="p-3 border rounded-lg">
+                        <h4 className="font-semibold flex items-center">
+                          <AlertTriangle className="w-5 h-5 mr-2 text-destructive" />
+                          Interaction: {interaction.drug1} & {interaction.drug2}
+                          <Badge variant="destructive" className="ml-auto">{interaction.severity}</Badge>
+                        </h4>
+                        <p className="mt-2"><strong>Description:</strong> {interaction.description}</p>
+                        <p><strong>Management:</strong> {interaction.management}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="diagnostics" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Diagnostic Assistance</CardTitle>
+              <CardDescription>Use patient data to generate diagnostic suggestions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This tool uses the patient's loaded medical history and current symptoms to suggest potential diagnoses.
+              </p>
+              <Button onClick={handleDiagnosticAssistance} disabled={loading || !selectedPatient} className="w-full">
+                {loading ? "Getting Suggestions..." : "Get Diagnostic Assistance"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {diagnosticSuggestions && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Diagnostic Suggestions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="whitespace-pre-wrap text-sm font-mono bg-muted/50 p-4 rounded-lg">
+                  {diagnosticSuggestions}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
       </Tabs>
     </div>
   )

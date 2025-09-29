@@ -92,9 +92,7 @@ export default function Dashboard() {
       .limit(5)
 
     if (activeFilter !== "all") {
-      // This is a simplified filter. A real implementation would be more complex.
-      // We are filtering on a nested table, which Supabase handles well.
-      patientQuery = patientQuery.eq("medical_history.status", activeFilter)
+      patientQuery = patientQuery.eq("status", activeFilter.toUpperCase())
     }
 
     const { data: patientData, error: patientError } = await patientQuery
@@ -102,7 +100,7 @@ export default function Dashboard() {
     if (patientError) {
       console.error("Error loading patients:", patientError)
       toast.error("Failed to load recent patients.")
-    } else {
+    } else if (patientData) {
       const transformedPatients = patientData.map((p) => {
         const latestHistory = p.medical_history?.[0]
         return {
@@ -112,17 +110,18 @@ export default function Dashboard() {
           age: new Date().getFullYear() - new Date(p.date_of_birth).getFullYear(),
           lastVisit: new Date(p.created_at).toLocaleDateString(),
           condition: latestHistory?.diagnosis || "N/A",
-          status: latestHistory?.status || "unknown",
-          riskLevel: latestHistory?.severity || "low",
+          status: p.status?.toLowerCase() || "unknown",
+          riskLevel: p.risk_level?.toLowerCase() || "low",
         }
       })
       setPatients(transformedPatients)
     }
 
-    // Fetch providers
+    // Fetch providers from the "users" table, which corresponds to the "User" model
     const { data: providerData, error: providerError } = await supabase
-      .from("profiles")
+      .from("users")
       .select("*")
+      .in("role", ["PHYSICIAN", "NURSE", "SPECIALIST"])
       .limit(4)
 
     if (providerError) {
@@ -133,14 +132,30 @@ export default function Dashboard() {
     }
 
     // Fetch metrics
-    const { data: patientCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
-    const { data: providerCount } = await supabase.from("profiles").select("*", { count: "exact", head: true })
+    const { count: patientCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
+    const { count: providerCount } = await supabase.from("users").select("*", { count: "exact", head: true }).in("role", ["PHYSICIAN", "NURSE", "SPECIALIST"])
 
-    setMetrics((prev) => ({
-      ...prev,
+    const today = new Date()
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+
+    const { count: appointmentsCount } = await supabase
+      .from("encounters")
+      .select("*", { count: "exact", head: true })
+      .gte("start_time", startOfDay)
+      .lt("start_time", endOfDay)
+
+    const { count: criticalAlertsCount } = await supabase
+      .from("patients")
+      .select("*", { count: "exact", head: true })
+      .eq("risk_level", "CRITICAL")
+
+    setMetrics({
       totalPatients: { value: patientCount ?? 0, change: 23 }, // Mock change
+      todaysAppointments: { value: appointmentsCount ?? 0, change: 5 }, // Mock change
+      criticalAlerts: { value: criticalAlertsCount ?? 0, change: -2 }, // Mock change
       activeProviders: { value: providerCount ?? 0, change: 1 }, // Mock change
-    }))
+    })
 
     setLoading(false)
   }
@@ -546,22 +561,20 @@ export default function Dashboard() {
                         <Avatar className="w-8 h-8">
                           <AvatarImage src={"/placeholder.svg"} />
                           <AvatarFallback>
-                            {member.first_name?.[0]}
-                            {member.last_name?.[0]}
+                            {member.firstName?.[0]}
+                            {member.lastName?.[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div
-                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${
-                            member.status === "online" ? "bg-chart-2" : "bg-muted-foreground"
-                          }`}
+                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-chart-2`}
                         ></div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm text-foreground">
-                          {member.first_name} {member.last_name}
+                          {member.firstName} {member.lastName}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {member.role} • {member.availability}
+                          {member.role}
                         </div>
                       </div>
                     </div>
