@@ -1,8 +1,8 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
-  const supabase = createServerClient()
+  const supabase = createClient()
   const { searchParams } = new URL(request.url)
   const status = searchParams.get("status")
   const assignedTo = searchParams.get("assigned_to")
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerClient()
+  const supabase = createClient()
   const { title, description, priority, assigned_to, patient_id, due_date } = await request.json()
 
   try {
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = createServerClient()
+  const supabase = createClient()
   const { id, status, ...updates } = await request.json()
 
   try {

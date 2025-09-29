@@ -1,8 +1,8 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
-  const supabase = createServerClient()
+  const supabase = createClient()
   const { searchParams } = new URL(request.url)
   const conversationId = searchParams.get("conversation_id")
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerClient()
+  const supabase = createClient()
   const { conversation_id, content, message_type = "text" } = await request.json()
 
   try {
