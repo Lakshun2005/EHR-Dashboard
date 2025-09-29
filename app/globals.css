@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
+    /* Updated color tokens for EHR healthcare theme */
+    --background: 210 20% 98%; /* Light background for clean look */
+    --foreground: 215 25% 27%; /* Dark text for high contrast */
+    --card: 0 0% 100%; /* White cards for content display */
+    --card-foreground: 215 25% 27%; /* Dark text on cards */
+    --popover: 0 0% 100%; /* Popover background */
+    --popover-foreground: 215 25% 27%; /* Text in popovers */
+    --primary: 262 83% 58%; /* Purple accent for buttons and highlights */
+    --primary-foreground: 0 0% 100%; /* White text on primary buttons */
+    --secondary: 215 16% 47%; /* Muted gray for secondary elements */
+    --secondary-foreground: 0 0% 100%; /* White text on secondary buttons */
+    --muted: 210 40% 92%; /* Light gray for inactive elements */
+    --muted-foreground: 215 25% 27%; /* Dark text on muted elements */
+    --accent: 262 83% 58%; /* Purple accent color */
+    --accent-foreground: 0 0% 100%; /* White text on accent elements */
+    --destructive: 0 84% 60%; /* Red for error messages and alerts */
+    --destructive-foreground: 0 0% 100%; /* White text on destructive buttons */
+    --border: 214 32% 91%; /* Light border for separation */
+    --input: 0 0% 100%; /* White input fields background */
+    --ring: 262 83% 58%; /* Purple focus ring color */
+    --chart-1: 262 83% 58%; /* Purple for primary charts */
+    --chart-2: 142 76% 36%; /* Green for success metrics */
+    --chart-3: 48 96% 53%; /* Yellow for warnings */
+    --chart-4: 0 84% 60%; /* Red for critical alerts */
+    --chart-5: 217 91% 60%; /* Blue for informational charts */
+    --radius: 0.5rem; /* Rounded corners for cards and inputs */
+    --sidebar-background: 0 0% 100%; /* White sidebar background */
+    --sidebar-foreground: 215 25% 27%; /* Dark sidebar text */
+    --sidebar-primary: 210 20% 98%; /* Light active sidebar item */
+    --sidebar-primary-foreground: 215 25% 27%; /* Dark text on active items */
+    --sidebar-accent: 262 83% 58%; /* Purple accent for sidebar highlights */
+    --sidebar-accent-foreground: 0 0% 100%; /* White text on sidebar accent items */
+    --sidebar-border: 214 32% 91%; /* Light border for sidebar */
+    --sidebar-ring: 262 83% 58%; /* Purple focus ring for sidebar elements */
+  }
+  .dark {
+    --background: 215 28% 17%; /* Dark background */
+    --foreground: 210 20% 98%; /* Light text */
+    --card: 215 28% 17%; /* Dark cards */
+    --card-foreground: 210 20% 98%; /* Light text on cards */
+    --popover: 215 28% 17%; /* Dark popover */
+    --popover-foreground: 210 20% 98%; /* Light text in popovers */
+    --primary: 262 83% 58%; /* Purple primary */
+    --primary-foreground: 0 0% 100%; /* White text on primary */
+    --secondary: 215 25% 27%; /* Dark secondary */
+    --secondary-foreground: 210 20% 98%; /* Light text on secondary */
+    --muted: 215 25% 27%; /* Dark muted */
+    --muted-foreground: 217 10% 64%; /* Muted text */
+    --accent: 262 83% 58%; /* Purple accent */
+    --accent-foreground: 0 0% 100%; /* White text on accent */
+    --destructive: 0 63% 31%; /* Dark red for errors */
+    --destructive-foreground: 210 20% 98%; /* Light text on destructive */
+    --border: 215 25% 27%; /* Dark border */
+    --input: 215 25% 27%; /* Dark input background */
+    --ring: 262 83% 58%; /* Purple focus ring */
+    --chart-1: 262 83% 58%; /* Purple charts */
+    --chart-2: 142 76% 36%; /* Green charts */
+    --chart-3: 48 96% 53%; /* Yellow charts */
+    --chart-4: 0 84% 60%; /* Red charts */
+    --chart-5: 217 91% 60%; /* Blue charts */
+    --sidebar-background: 215 28% 17%; /* Dark sidebar */
+    --sidebar-foreground: 210 20% 98%; /* Light sidebar text */
+    --sidebar-primary: 215 25% 27%; /* Dark active sidebar item */
+    --sidebar-primary-foreground: 210 20% 98%; /* Light text on active items */
+    --sidebar-accent: 262 83% 58%; /* Purple sidebar accent */
+    --sidebar-accent-foreground: 0 0% 100%; /* White text on sidebar accent */
+    --sidebar-border: 215 25% 27%; /* Dark sidebar border */
+    --sidebar-ring: 262 83% 58%; /* Purple sidebar focus ring */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
