@@ -27,19 +27,77 @@ import { toast } from "sonner"
 
 // NOTE: The interfaces for AI responses remain the same.
 
+import { useEffect } from "react"
+
+type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED"
+
+function useAITask(taskId: string | null) {
+  const [status, setStatus] = useState<TaskStatus | null>(null)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!taskId) return
+
+    setStatus("PENDING")
+    setResult(null)
+    setError(null)
+
+    const intervalId = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`)
+        if (!response.ok) {
+          throw new Error("Failed to fetch task status.")
+        }
+        const task = await response.json()
+
+        if (task.status === "COMPLETED" || task.status === "FAILED") {
+          clearInterval(intervalId)
+          setStatus(task.status)
+          if (task.status === "COMPLETED") {
+            setResult(task.output)
+            toast.success("AI task completed successfully.")
+          } else {
+            setError(task.error)
+            toast.error("AI task failed.", { description: task.error })
+          }
+        }
+      } catch (e) {
+        clearInterval(intervalId)
+        setError((e as Error).message)
+        setStatus("FAILED")
+        toast.error("Error polling for task status.")
+      }
+    }, 3000) // Poll every 3 seconds
+
+    const timeoutId = setTimeout(() => {
+        clearInterval(intervalId);
+        if (status !== 'COMPLETED' && status !== 'FAILED') {
+            setStatus('FAILED');
+            setError('Task timed out.');
+            toast.error('Task timed out after 2 minutes.');
+        }
+    }, 120000); // 2 minute timeout
+
+    return () => {
+        clearInterval(intervalId)
+        clearTimeout(timeoutId)
+    }
+  }, [taskId])
+
+  return { status, result, error, setStatus }
+}
+
+
 export function ClinicalAIAssistant() {
   const [activeTab, setActiveTab] = useState("assessment")
-  const [loading, setLoading] = useState(false)
   const [assessment, setAssessment] = useState(null)
   const [drugInteractions, setDrugInteractions] = useState(null)
-  const [diagnosticSuggestions, setDiagnosticSuggestions] = useState("")
 
-  // State for patient selection and data
   const [patientMrn, setPatientMrn] = useState("")
-  const [selectedPatient, setSelectedPatient] = useState(null)
+  const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [isFetchingPatient, setIsFetchingPatient] = useState(false)
 
-  // Form states - now populated from selectedPatient
   const [symptoms, setSymptoms] = useState("")
   const [medicalHistory, setMedicalHistory] = useState("")
   const [currentMedications, setCurrentMedications] = useState("")
@@ -50,6 +108,24 @@ export function ClinicalAIAssistant() {
   const [rr, setRr] = useState("")
   const [newMedication, setNewMedication] = useState("")
 
+  const [assessmentTaskId, setAssessmentTaskId] = useState<string | null>(null)
+  const { status: assessmentStatus, result: assessmentResult, error: assessmentError, setStatus: setAssessmentStatus } = useAITask(assessmentTaskId)
+
+  const [drugInteractionTaskId, setDrugInteractionTaskId] = useState<string | null>(null)
+  const { status: drugInteractionStatus, result: drugInteractionResult, error: drugInteractionError, setStatus: setDrugInteractionStatus } = useAITask(drugInteractionTaskId)
+
+  useEffect(() => {
+    if (assessmentResult) {
+      setAssessment(assessmentResult)
+    }
+  }, [assessmentResult])
+
+  useEffect(() => {
+    if (drugInteractionResult) {
+      setDrugInteractions(drugInteractionResult)
+    }
+  }, [drugInteractionResult])
+
   const handleFetchPatient = async () => {
     if (!patientMrn) {
       toast.info("Please enter a Patient MRN.")
@@ -57,18 +133,16 @@ export function ClinicalAIAssistant() {
     }
     setIsFetchingPatient(true)
     try {
-      // First, find the patient by MRN
-      const searchResponse = await fetch(`/api/patients?searchTerm=${patientMrn}`)
+      const searchResponse = await fetch(`/api/patients?searchTerm=${patientMrn}&limit=1`)
       if (!searchResponse.ok) throw new Error("Failed to search for patient.")
-      const searchResults = await searchResponse.json()
+      const { data } = await searchResponse.json()
 
-      if (searchResults.length === 0) {
+      if (data.length === 0) {
         toast.error("Patient not found", { description: `No patient found with MRN: ${patientMrn}` })
         return
       }
 
-      const patientSummary = searchResults[0]
-      // Then, fetch the full patient details
+      const patientSummary = data[0]
       const patientResponse = await fetch(`/api/patients/${patientSummary.id}`)
       if (!patientResponse.ok) throw new Error("Failed to fetch full patient details.")
       const patientData = await patientResponse.json()
@@ -76,16 +150,14 @@ export function ClinicalAIAssistant() {
       setSelectedPatient(patientData)
       toast.success(`Loaded data for ${patientData.firstName} ${patientData.lastName}`)
 
-      // Populate form fields from patient data
-      setMedicalHistory(patientData.medicalHistory?.map(h => h.diagnosis).join(', ') || "")
-      setCurrentMedications(patientData.medications?.map(m => `${m.name} ${m.dosage}`).join(', ') || "")
-      // Vitals and symptoms would need more complex logic to pull from recent encounters/notes
-      setVitals(patientData.vitalSigns?.slice(-1).map(v => JSON.stringify({ bp: v.bloodPressure, hr: v.heartRate, temp: v.temperature }))[0] || '{"bp": "N/A", "hr": "N/A"}')
-      setSymptoms("Fever, cough") // Placeholder, as this is subjective info for a new encounter
+      setMedicalHistory(patientData.medicalHistory?.map((h: any) => h.diagnosis).join(', ') || "")
+      setCurrentMedications(patientData.medications?.map((m: any) => `${m.name} ${m.dosage}`).join(', ') || "")
+      setVitals(patientData.vitalSigns?.slice(-1).map((v: any) => JSON.stringify({ bp: v.bloodPressure, hr: v.heartRate, temp: v.temperature }))[0] || '{"bp": "N/A", "hr": "N/A"}')
+      setSymptoms("Fever, cough")
 
     } catch (error) {
       console.error(error)
-      toast.error(error.message)
+      toast.error((error as Error).message)
       setSelectedPatient(null)
     } finally {
       setIsFetchingPatient(false)
@@ -97,7 +169,10 @@ export function ClinicalAIAssistant() {
       toast.error("Please load a patient before running an assessment.")
       return
     }
-    setLoading(true)
+    setAssessment(null)
+    setAssessmentTaskId(null)
+    setAssessmentStatus('PENDING')
+
     try {
       const response = await fetch("/api/clinical-ai", {
         method: "POST",
@@ -116,6 +191,7 @@ export function ClinicalAIAssistant() {
           },
         }),
       })
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "An unknown error occurred." }))
         throw new Error(errorData.error || "Failed to generate assessment.")
@@ -225,7 +301,7 @@ export function ClinicalAIAssistant() {
 
   // Other handlers (handleDrugInteractionCheck, handleDiagnosticAssistance) would be refactored similarly
 
-  // ... (UI rendering code remains largely the same, but with new patient selector)
+  const isDrugInteractionRunning = drugInteractionStatus === 'PENDING' || drugInteractionStatus === 'IN_PROGRESS'
 
   return (
     <div className="space-y-6">
@@ -324,8 +400,15 @@ export function ClinicalAIAssistant() {
                   <Input value={rr} onChange={(e) => setRr(e.target.value)} placeholder="RR (e.g., 16)" disabled={!selectedPatient} />
                 </div>
               </div>
-              <Button onClick={handleAIAssessment} disabled={loading || !selectedPatient} className="w-full">
-                {loading ? "Analyzing..." : "Generate Clinical Assessment"}
+              <Button onClick={handleAIAssessment} disabled={isAssessmentRunning || !selectedPatient} className="w-full">
+                {isAssessmentRunning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  "Generate Clinical Assessment"
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -379,12 +462,10 @@ export function ClinicalAIAssistant() {
                     </div>
                   ))}
                 </div>
-
               </CardContent>
             </Card>
           )}
         </TabsContent>
-
         <TabsContent value="interactions" className="space-y-6">
           <Card>
             <CardHeader>
@@ -471,7 +552,6 @@ export function ClinicalAIAssistant() {
             </Card>
           )}
         </TabsContent>
-
       </Tabs>
     </div>
   )
