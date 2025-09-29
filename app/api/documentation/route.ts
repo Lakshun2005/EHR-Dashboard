@@ -1,4 +1,4 @@
-import { openai } from "@ai-sdk/openai"
+import { google } from "@ai-sdk/google"
 import { streamText, generateObject } from "ai"
 import { z } from "zod"
 
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         Generate the SOAP note now. Use markdown for formatting.
       `
       const result = await streamText({
-        model: openai("gpt-4-turbo"),
+        model: google("models/gemini-1.5-pro-latest"),
         prompt,
       })
       return result.toAIStreamResponse()
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         Structure the output clearly. For example, if the context is a progress note, use headings like "Subjective," "Objective," etc.
       `
       const { object } = await generateObject({
-        model: openai("gpt-4-turbo"),
+        model: google("models/gemini-1.5-pro-latest"),
         schema: z.object({
           transcribedNote: z.string().describe("The structured clinical note generated from the transcript."),
         }),
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
         Format the output as a simple string summary.
       `
       const { object } = await generateObject({
-        model: openai("gpt-4-turbo"),
+        model: google("models/gemini-1.5-pro-latest"),
         schema: z.object({
           extractedInfo: z.string().describe("The extracted medical information."),
         }),

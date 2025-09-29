@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.17",
     "@ai-sdk/openai": "2.0.32",
     "@hookform/resolvers": "^3.9.1",
     "@prisma/client": "6.16.2",
