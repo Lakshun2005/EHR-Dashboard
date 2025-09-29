@@ -24,25 +24,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { createClient } from "@/lib/supabase/client"
 import { AddPatientDialog } from "@/components/add-patient-dialog"
 import { EditPatientDialog } from "@/components/edit-patient-dialog"
 import { toast } from "sonner"
-
-// Sample data structure - align with your actual data
-const recentPatients = [
-  {
-    id: "1",
-    mrn: "MRN001234",
-    name: "John Smith",
-    age: 38,
-    lastVisit: "2025-01-20",
-    condition: "Hypertension",
-    status: "stable",
-    riskLevel: "medium",
-  },
-  // Add more sample patients if needed
-]
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState([])
@@ -53,12 +37,20 @@ export default function PatientsPage() {
   const [selectedPatient, setSelectedPatient] = useState(null)
 
   const handleEditPatient = (patient) => {
-    setSelectedPatient(patient)
-    setIsEditPatientDialogOpen(true)
+    // Fetch full patient details before editing
+    fetch(`/api/patients/${patient.id}`)
+      .then(res => res.json())
+      .then(data => {
+        setSelectedPatient(data)
+        setIsEditPatientDialogOpen(true)
+      })
+      .catch(error => {
+        console.error("Failed to fetch patient details:", error)
+        toast.error("Failed to load patient details.")
+      })
   }
 
-  const handlePatientUpdated = (updatedPatient) => {
-    setPatients(patients.map((p) => (p.id === updatedPatient.id ? updatedPatient : p)))
+  const handlePatientUpdated = () => {
     loadPatients() // Refresh the list
   }
 
@@ -67,85 +59,41 @@ export default function PatientsPage() {
       return
     }
 
-    const supabase = createClient()
-    const { error } = await supabase.from("patients").delete().eq("id", patientId)
+    try {
+      const response = await fetch(`/api/patients/${patientId}`, {
+        method: "DELETE",
+      })
 
-    if (error) {
-      toast.error("Failed to delete patient.", { description: error.message })
-    } else {
+      if (!response.ok) {
+        throw new Error("Failed to delete patient.")
+      }
+
       toast.success("Patient deleted successfully.")
       loadPatients()
+    } catch (error) {
+      toast.error(error.message)
     }
   }
 
   const loadPatients = async () => {
     setLoading(true)
-    const supabase = createClient()
-    let query = supabase
-      .from("patients")
-      .select(`
-        id,
-        medical_record_number,
-        first_name,
-        last_name,
-        date_of_birth,
-        phone,
-        email,
-        created_at
-      `)
-      .order("created_at", { ascending: false })
-
-    if (searchTerm) {
-      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,medical_record_number.ilike.%${searchTerm}%`)
+    try {
+      const response = await fetch(`/api/patients?searchTerm=${searchTerm}`)
+      if (!response.ok) {
+        throw new Error("Network response was not ok")
+      }
+      const data = await response.json()
+      setPatients(data)
+    } catch (error) {
+      console.error("Error loading patients:", error)
+      toast.error("Failed to load patients.")
+      // In a real-world scenario, you might want to set patients to an empty array
+      // or handle this more gracefully.
+      setPatients([])
+    } finally {
+      setLoading(false)
     }
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error("Error loading patients:", error);
-      setPatients(recentPatients); // Fallback to sample data
-      setLoading(false);
-      return;
-    }
-
-    const patientIds = data.map((p) => p.id);
-    const { data: histories, error: historyError } = await supabase
-      .from("medical_history")
-      .select("*")
-      .in("patient_id", patientIds);
-
-    if (historyError) {
-      console.error("Error loading medical histories:", historyError);
-    }
-
-    const latestHistories = histories
-      ? histories.reduce((acc, history) => {
-          if (
-            !acc[history.patient_id] ||
-            new Date(history.diagnosis_date) > new Date(acc[history.patient_id].diagnosis_date)
-          ) {
-            acc[history.patient_id] = history;
-          }
-          return acc;
-        }, {})
-      : {};
-
-    const transformedPatients = data.map((patient) => {
-      const latestHistory = latestHistories[patient.id];
-      return {
-        id: patient.id,
-        mrn: patient.medical_record_number,
-        name: `${patient.first_name} ${patient.last_name}`,
-        age: new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear(),
-        lastVisit: new Date(patient.created_at).toISOString().split("T")[0],
-        status: latestHistory?.status || "unknown",
-        riskLevel: latestHistory?.severity || "unknown",
-      };
-    });
-
-    setPatients(transformedPatients);
-    setLoading(false);
-  };
+  }
 
 
   useEffect(() => {

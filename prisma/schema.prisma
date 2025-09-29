@@ -1,0 +1,330 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS ---
+
+enum Role {
+  PHYSICIAN
+  NURSE
+  ADMINISTRATOR
+  SPECIALIST
+  OTHER
+}
+
+enum EncounterType {
+  INPATIENT
+  OUTPATIENT
+  EMERGENCY
+  VIRTUAL
+}
+
+enum EncounterStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PatientStatus {
+  STABLE
+  CRITICAL
+  MONITORED
+  DISCHARGED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DEFERRED
+}
+
+enum EquipmentStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+// --- AUTH & USER MANAGEMENT ---
+
+model User {
+  id            String    @id @default(uuid()) // Corresponds to Supabase auth.users.id
+  email         String    @unique
+  firstName     String?
+  lastName      String?
+  role          Role      @default(OTHER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  assignedPatients    Patient[]       @relation("PrimaryPhysician")
+  authoredNotes       ClinicalNote[]
+  tasks               Task[]
+  schedules           StaffSchedule[]
+  auditLogs           AuditLog[]
+  sentMessages        Message[]       @relation("SentMessages")
+  conversations       Conversation[]  @relation("ConversationMembers")
+  attendedEncounters  Encounter[]
+}
+
+// --- CORE PATIENT MODELS ---
+
+model Patient {
+  id                   String     @id @default(uuid())
+  medicalRecordNumber  String     @unique @default(cuid())
+  firstName            String
+  lastName             String
+  dateOfBirth          DateTime
+  gender               String?
+  phone                String?
+  email                String?    @unique
+  address              String?
+  status               PatientStatus @default(STABLE)
+  riskLevel            RiskLevel  @default(LOW)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  primaryPhysicianId  String?
+  primaryPhysician    User?           @relation("PrimaryPhysician", fields: [primaryPhysicianId], references: [id])
+
+  encounters      Encounter[]
+  clinicalNotes   ClinicalNote[]
+  medicalHistory  MedicalHistory[]
+  vitalSigns      VitalSign[]
+  medications     Medication[]
+  allergies       Allergy[]
+  labResults      LabResult[]
+  procedures      Procedure[]
+}
+
+model Encounter {
+  id        String          @id @default(uuid())
+  status    EncounterStatus @default(PLANNED)
+  type      EncounterType
+  reason    String?
+  startTime DateTime
+  endTime   DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  patientId   String
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  providerId  String
+  provider    User      @relation(fields: [providerId], references: [id])
+  departmentId String
+  department  Department @relation(fields: [departmentId], references: [id])
+
+  bedId String?
+  bed   Bed?    @relation(fields: [bedId], references: [id])
+
+  notes       ClinicalNote[]
+  labResults  LabResult[]
+  procedures  Procedure[]
+}
+
+model ClinicalNote {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  noteType  String // e.g., "SOAP", "Progress", "Discharge"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
+  authorId  String
+  author    User    @relation(fields: [authorId], references: [id])
+  encounterId String?
+  encounter Encounter? @relation(fields: [encounterId], references: [id])
+}
+
+// --- DETAILED PATIENT DATA ---
+
+model MedicalHistory {
+  id             String   @id @default(uuid())
+  diagnosis      String
+  diagnosisDate  DateTime
+  treatment      String?
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
+}
+
+model VitalSign {
+  id              String   @id @default(uuid())
+  timestamp       DateTime @default(now())
+  heartRate       Int?
+  bloodPressure   String? // e.g., "120/80"
+  temperature     Float?
+  respiratoryRate Int?
+  oxygenSaturation Float?
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
+}
+
+model Medication {
+  id        String   @id @default(uuid())
+  name      String
+  dosage    String
+  frequency String
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
+}
+
+model Allergy {
+  id        String   @id @default(uuid())
+  substance String
+  reaction  String
+  severity  RiskLevel
+  createdAt DateTime @default(now())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
+}
+
+model LabResult {
+  id           String   @id @default(uuid())
+  testName     String
+  resultValue  String
+  units        String?
+  referenceRange String?
+  collectedAt  DateTime
+  createdAt    DateTime @default(now())
+
+  patientId   String
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  encounterId String
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
+}
+
+model Procedure {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?  @db.Text
+  procedureDate DateTime
+  createdAt    DateTime @default(now())
+
+  patientId   String
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  encounterId String
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
+}
+
+// --- OPERATIONAL & RESOURCE MANAGEMENT ---
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+
+  encounters  Encounter[]
+  beds        Bed[]
+  equipment   Equipment[]
+}
+
+model Bed {
+  id         String  @id @default(uuid())
+  bedNumber  String  @unique
+  isOccupied Boolean @default(false)
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  encounters  Encounter[]
+}
+
+model Equipment {
+  id            String          @id @default(uuid())
+  name          String
+  type          String
+  status        EquipmentStatus @default(AVAILABLE)
+  lastMaintenance DateTime?
+  nextMaintenance DateTime?
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+}
+
+model StaffSchedule {
+  id        String   @id @default(uuid())
+  startTime DateTime
+  endTime   DateTime
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+// --- COMMUNICATION & WORKFLOW ---
+
+model Conversation {
+  id        String    @id @default(uuid())
+  title     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  members   User[]    @relation("ConversationMembers")
+  messages  Message[]
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  senderId  String
+  sender    User   @relation("SentMessages", fields: [senderId], references: [id])
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus @default(PENDING)
+  dueDate     DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  assigneeId String
+  assignee   User   @relation(fields: [assigneeId], references: [id])
+}
+
+// --- COMPLIANCE & AUDITING ---
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // e.g., "VIEW_PATIENT_RECORD", "CREATE_NOTE"
+  entity    String   // e.g., "Patient", "ClinicalNote"
+  entityId  String
+  timestamp DateTime @default(now())
+  details   Json?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+}

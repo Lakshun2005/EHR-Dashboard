@@ -12,28 +12,28 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 export function EditPatientDialog({ patient, open, onOpenChange, onPatientUpdated }) {
   const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    date_of_birth: "",
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "",
+    phone: "",
+    email: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (patient) {
-      const nameParts = patient.name.split(" ")
       setFormData({
-        first_name: nameParts[0] || "",
-        last_name: nameParts.slice(1).join(" ") || "",
-        date_of_birth: patient.date_of_birth
-          ? new Date(patient.date_of_birth).toISOString().split("T")[0]
-          : new Date(new Date().setFullYear(new Date().getFullYear() - patient.age))
-              .toISOString()
-              .split("T")[0],
+        firstName: patient.firstName || "",
+        lastName: patient.lastName || "",
+        dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split("T")[0] : "",
+        gender: patient.gender || "",
+        phone: patient.phone || "",
+        email: patient.email || "",
       })
     }
   }, [patient])
@@ -48,28 +48,25 @@ export function EditPatientDialog({ patient, open, onOpenChange, onPatientUpdate
     if (!patient) return
 
     setIsSubmitting(true)
-    const supabase = createClient()
-
-    const { data, error } = await supabase
-      .from("patients")
-      .update({
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        date_of_birth: formData.date_of_birth,
+    try {
+      const response = await fetch(`/api/patients/${patient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
       })
-      .eq("id", patient.id)
-      .select()
 
-    setIsSubmitting(false)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Could not update patient")
+      }
 
-    if (error) {
-      toast.error("Could not update patient", {
-        description: error.message,
-      })
-    } else {
       toast.success("Patient updated successfully.")
-      onPatientUpdated({ ...patient, ...formData, name: `${formData.first_name} ${formData.last_name}` })
+      onPatientUpdated()
       onOpenChange(false)
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 

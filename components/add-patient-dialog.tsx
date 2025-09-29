@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 export function AddPatientDialog({ open, onOpenChange, onPatientAdded }) {
@@ -22,41 +21,45 @@ export function AddPatientDialog({ open, onOpenChange, onPatientAdded }) {
   const [gender, setGender] = useState("prefer_not_to_say")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const resetForm = () => {
+    setFirstName("")
+    setLastName("")
+    setDob("")
+    setGender("prefer_not_to_say")
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    const supabase = createClient()
-    const mrn = `MRN${Date.now()}` // Simple unique MRN generation
-
-    const { data, error } = await supabase
-      .from("patients")
-      .insert([
-        {
-          first_name: firstName,
-          last_name: lastName,
-          date_of_birth: dob,
-          gender: gender,
-          medical_record_number: mrn,
+    try {
+      const response = await fetch("/api/patients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      ])
-      .select()
-
-    setIsSubmitting(false)
-
-    if (error) {
-      toast.error("Could not add new patient", {
-        description: error.message,
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          dateOfBirth: dob,
+          gender,
+        }),
       })
-    } else {
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Could not add new patient")
+      }
+
+      const newPatient = await response.json()
       toast.success("New patient added successfully.")
-      onPatientAdded(data[0])
+      onPatientAdded(newPatient)
       onOpenChange(false)
-      // Reset form
-      setFirstName("")
-      setLastName("")
-      setDob("")
-      setGender("prefer_not_to_say")
+      resetForm()
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
