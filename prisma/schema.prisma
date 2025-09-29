@@ -84,6 +84,7 @@ model User {
   sentMessages        Message[]       @relation("SentMessages")
   conversations       Conversation[]  @relation("ConversationMembers")
   attendedEncounters  Encounter[]
+  backgroundTasks     BackgroundTask[]
 }
 
 // --- CORE PATIENT MODELS ---
