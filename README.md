@@ -5,7 +5,7 @@ This is a comprehensive, production-ready Electronic Health Record (EHR) dashboa
 ## Core Features
 
 -   **Patient Management Hub**: A central dashboard for viewing, searching, and managing patient records.
--   **AI-Powered Clinical Decision Support**: Real-time risk assessment, diagnostic assistance, and drug interaction checking powered by OpenAI.
+-   **AI-Powered Clinical Decision Support**: Real-time risk assessment, diagnostic assistance, and drug interaction checking powered by Google Gemini.
 -   **Advanced Data Visualization**: A dedicated analytics section with interactive charts for clinical and operational metrics.
 -   **Smart Documentation System**: AI-assisted tools for generating clinical notes and voice-to-text transcription.
 -   **Secure & Compliant**: The architecture is designed with security in mind, leveraging Supabase for authentication and a detailed data schema for auditing.
@@ -17,7 +17,7 @@ This is a comprehensive, production-ready Electronic Health Record (EHR) dashboa
 -   **Backend**: Node.js with Next.js API Routes
 -   **Database**: Supabase (PostgreSQL)
 -   **ORM**: Prisma
--   **AI Integration**: Vercel AI SDK & OpenAI GPT-4
+-   **AI Integration**: Vercel AI SDK & Google Gemini
 -   **Styling**: Tailwind CSS
 -   **UI Components**: Shadcn/UI
 
@@ -30,7 +30,7 @@ Follow these instructions to get a copy of the project up and running on your lo
 -   Node.js (v18 or later)
 -   pnpm (or your preferred package manager)
 -   A Supabase account with a new project created.
--   An OpenAI API key.
+-   A Google Gemini API key.
 
 ### 1. Clone the Repository
 
@@ -68,10 +68,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 
 # Supabase Database Connection String (for Prisma)
 # Go to your Supabase project -> Settings -> Database -> Connection string
-DATABASE_URL=your-supabase-connection-string
+DATABASE_URL=your-supabase-pooled-connection-string
 
-# OpenAI API Key
-OPENAI_API_KEY=your-openai-api-key
+# Supabase Database Connection String (for Prisma migrations)
+DATABASE_URL_NON_POOLING=your-supabase-direct-connection-string
+
+# Google Gemini API Key
+GOOGLE_GEMINI_API_KEY=your-google-gemini-api-key
 ```
 
 ### 4. Set Up the Database

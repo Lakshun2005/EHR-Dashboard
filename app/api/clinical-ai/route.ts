@@ -1,4 +1,4 @@
-import { openai } from "@ai-sdk/openai"
+import { google } from "@ai-sdk/google"
 import { streamText, generateObject } from "ai"
 import { z } from "zod"
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
         }
       `
       const { object } = await generateObject({
-        model: openai("gpt-4-turbo"),
+        model: google("gemini-pro"),
         schema: z.object({
             riskLevel: z.enum(["low", "medium", "high", "critical"]),
             primaryConcerns: z.array(z.string()),
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
         }
       `
       const { object } = await generateObject({
-        model: openai("gpt-4-turbo"),
+        model: google("gemini-pro"),
         schema: z.object({
             interactions: z.array(z.object({
                 drug1: z.string(),
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     case "diagnostic_assistance": {
       const { symptoms, patientHistory } = data
       const result = await streamText({
-        model: openai("gpt-4-turbo"),
+        model: google("gemini-pro"),
         prompt: `You are a diagnostic assistant. Based on the following symptoms and patient history, provide a list of differential diagnoses and suggested next steps.
         Symptoms: ${symptoms.join(", ")}
         History: ${patientHistory}`,
