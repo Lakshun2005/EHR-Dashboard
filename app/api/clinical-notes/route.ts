@@ -1,4 +1,4 @@
-import { openai } from "@ai-sdk/openai"
+import { google } from "@ai-sdk/google"
 import { generateText, streamText } from "ai"
 
 export const maxDuration = 30
@@ -45,7 +45,7 @@ async function generateClinicalNote(data: any) {
   `
 
   const result = streamText({
-    model: openai("gpt-4"),
+    model: google("gemini-pro"),
     prompt,
     maxOutputTokens: 2000,
     temperature: 0.4,
@@ -68,7 +68,7 @@ async function summarizeVisit(data: any) {
   `
 
   const { text } = await generateText({
-    model: openai("gpt-4"),
+    model: google("gemini-pro"),
     prompt,
     maxOutputTokens: 800,
     temperature: 0.3,
@@ -92,7 +92,7 @@ async function extractICDCodes(data: any) {
   `
 
   const { text } = await generateText({
-    model: openai("gpt-4"),
+    model: google("gemini-pro"),
     prompt,
     maxOutputTokens: 1000,
     temperature: 0.2,
