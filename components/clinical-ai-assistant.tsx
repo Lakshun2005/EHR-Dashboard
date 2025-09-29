@@ -102,6 +102,10 @@ export function ClinicalAIAssistant() {
   const [medicalHistory, setMedicalHistory] = useState("")
   const [currentMedications, setCurrentMedications] = useState("")
   const [vitals, setVitals] = useState("")
+  const [bp, setBp] = useState("")
+  const [hr, setHr] = useState("")
+  const [temp, setTemp] = useState("")
+  const [rr, setRr] = useState("")
   const [newMedication, setNewMedication] = useState("")
 
   const [assessmentTaskId, setAssessmentTaskId] = useState<string | null>(null)
@@ -181,40 +185,75 @@ export function ClinicalAIAssistant() {
               gender: selectedPatient.gender,
             },
             symptoms: symptoms.split(",").map((s) => s.trim()),
-            vitals: vitals ? JSON.parse(vitals) : {},
+            vitals: { bp, hr, temp, rr },
             medicalHistory: medicalHistory.split(",").map((h) => h.trim()),
             currentMedications: currentMedications.split(",").map((m) => m.trim()),
           },
         }),
       })
-      if (response.status !== 202) {
-        throw new Error("Failed to start AI assessment task.")
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "An unknown error occurred." }))
+        throw new Error(errorData.error || "Failed to generate assessment.")
       }
-      const { taskId } = await response.json()
-      setAssessmentTaskId(taskId)
-      toast.info("AI assessment started.", { description: "You will be notified upon completion." })
+      const result = await response.json()
+      setAssessment(result.assessment)
+      toast.success("AI Assessment generated successfully.")
     } catch (error) {
       console.error("Error:", error)
-      toast.error((error as Error).message)
-      setAssessmentStatus('FAILED')
+      toast.error(error.message || "An error occurred while generating the assessment.")
+    } finally {
+      setLoading(false)
     }
   }
 
-  const isAssessmentRunning = assessmentStatus === 'PENDING' || assessmentStatus === 'IN_PROGRESS'
+  const handleDiagnosticAssistance = async () => {
+    if (!selectedPatient) {
+      toast.error("Please load a patient before getting diagnostic assistance.")
+      return
+    }
+    setLoading(true)
+    setDiagnosticSuggestions("")
+    try {
+      const response = await fetch("/api/clinical-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "diagnostic_assistance",
+          data: {
+            symptoms: symptoms.split(",").map(s => s.trim()),
+            patientHistory: medicalHistory,
+          },
+        }),
+      })
+      if (!response.ok) throw new Error("Failed to get diagnostic assistance.")
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error("No response body")
+
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        setDiagnosticSuggestions((prev) => prev + chunk)
+      }
+      toast.success("Diagnostic suggestions generated.")
+    } catch (error) {
+      console.error("Error:", error)
+      toast.error(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleDrugInteractionCheck = async () => {
-    if (!selectedPatient) {
-      toast.error("Please load a patient first.")
+    if (!selectedPatient || !newMedication) {
+      toast.error("Please load a patient and enter a new medication to check.")
       return
     }
-    if (!newMedication) {
-      toast.error("Please enter a new medication to check.")
-      return
-    }
+    setLoading(true)
     setDrugInteractions(null)
-    setDrugInteractionTaskId(null)
-    setDrugInteractionStatus('PENDING')
-
     try {
       const response = await fetch("/api/clinical-ai", {
         method: "POST",
@@ -223,22 +262,44 @@ export function ClinicalAIAssistant() {
           type: "drug_interaction",
           data: {
             medications: currentMedications.split(",").map(m => m.trim()),
-            newMedication,
+            newMedication: newMedication,
           },
         }),
       })
-      if (response.status !== 202) {
-        throw new Error("Failed to start drug interaction task.")
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "An unknown error occurred." }))
+        throw new Error(errorData.error || "Failed to check drug interactions.")
       }
-      const { taskId } = await response.json()
-      setDrugInteractionTaskId(taskId)
-      toast.info("Drug interaction check started.")
+      const result = await response.json()
+      setDrugInteractions(result.interactions)
+      toast.success("Drug interaction check complete.")
     } catch (error) {
       console.error("Error:", error)
-      toast.error((error as Error).message)
-      setDrugInteractionStatus('FAILED')
+      toast.error(error.message || "An error occurred while checking interactions.")
+    } finally {
+      setLoading(false)
     }
   }
+
+  const handleExportAssessment = () => {
+    if (!assessment) {
+      toast.error("No assessment to export.")
+      return
+    }
+    const assessmentString = JSON.stringify(assessment, null, 2)
+    const blob = new Blob([assessmentString], { type: "application/json;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `Clinical-Assessment-${selectedPatient?.medicalRecordNumber || 'patient'}-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success("Assessment exported as a JSON file.")
+  }
+
+  // Other handlers (handleDrugInteractionCheck, handleDiagnosticAssistance) would be refactored similarly
 
   const isDrugInteractionRunning = drugInteractionStatus === 'PENDING' || drugInteractionStatus === 'IN_PROGRESS'
 
@@ -331,15 +392,13 @@ export function ClinicalAIAssistant() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vitals">Vital Signs (JSON format)</Label>
-                <Textarea
-                  id="vitals"
-                  value={vitals}
-                  onChange={(e) => setVitals(e.target.value)}
-                  placeholder='{"bp_systolic": 140, "bp_diastolic": 90, "heart_rate": 85, "temperature": 98.6}'
-                  rows={2}
-                  disabled={!selectedPatient}
-                />
+                <Label>Vital Signs</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input value={bp} onChange={(e) => setBp(e.target.value)} placeholder="BP (e.g., 120/80)" disabled={!selectedPatient} />
+                  <Input value={hr} onChange={(e) => setHr(e.target.value)} placeholder="HR (e.g., 72 bpm)" disabled={!selectedPatient} />
+                  <Input value={temp} onChange={(e) => setTemp(e.target.value)} placeholder="Temp (e.g., 98.6°F)" disabled={!selectedPatient} />
+                  <Input value={rr} onChange={(e) => setRr(e.target.value)} placeholder="RR (e.g., 16)" disabled={!selectedPatient} />
+                </div>
               </div>
               <Button onClick={handleAIAssessment} disabled={isAssessmentRunning || !selectedPatient} className="w-full">
                 {isAssessmentRunning ? (
@@ -353,21 +412,56 @@ export function ClinicalAIAssistant() {
               </Button>
             </CardContent>
           </Card>
-          {assessmentStatus && (
+          {assessment && (
             <Card>
               <CardHeader>
-                <CardTitle>Assessment Status</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>AI Assessment Results</CardTitle>
+                  <Button variant="outline" size="sm" onClick={handleExportAssessment}>
+                    Export as JSON
+                  </Button>
+                </div>
+                <CardDescription>
+                  Based on the provided data, the AI suggests the following:
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                {assessmentStatus === 'PENDING' && <div className="flex items-center gap-2"><Clock className="w-4 h-4" /><span>Task is pending...</span></div>}
-                {assessmentStatus === 'IN_PROGRESS' && <div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /><span>Task is in progress...</span></div>}
-                {assessmentStatus === 'COMPLETED' && assessmentResult && (
-                  <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /><span>Task completed.</span></div>
-                  // Display assessmentResult here
-                )}
-                {assessmentStatus === 'FAILED' && (
-                  <div className="flex items-center gap-2"><XCircle className="w-4 h-4 text-red-500" /><span>Task failed: {assessmentError}</span></div>
-                )}
+              <CardContent className="space-y-4">
+                <Alert variant={
+                    assessment.riskLevel === 'critical' ? 'destructive' :
+                    assessment.riskLevel === 'high' ? 'destructive' :
+                    assessment.riskLevel === 'medium' ? 'default' :
+                    'default'
+                }>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Risk Level: {assessment.riskLevel.toUpperCase()}</AlertTitle>
+                </Alert>
+
+                <div>
+                  <h4 className="font-semibold">Primary Concerns:</h4>
+                  <ul className="list-disc list-inside">
+                    {assessment.primaryConcerns.map((concern, i) => <li key={i}>{concern}</li>)}
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold">Recommendations:</h4>
+                  {assessment.recommendations.map((rec, i) => (
+                    <div key={i} className="p-2 mt-2 border rounded-lg">
+                      <p><strong>Action:</strong> {rec.action} <Badge variant="secondary">{rec.priority}</Badge></p>
+                      <p className="text-sm text-muted-foreground">{rec.rationale}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <h4 className="font-semibold">Differential Diagnosis:</h4>
+                  {assessment.differentialDiagnosis.map((diag, i) => (
+                     <div key={i} className="p-2 mt-2 border rounded-lg">
+                      <p><strong>Condition:</strong> {diag.condition} <Badge variant="outline">{diag.probability}</Badge></p>
+                      <p className="text-sm">Supporting Factors: {diag.supportingFactors.join(', ')}</p>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -375,69 +469,88 @@ export function ClinicalAIAssistant() {
         <TabsContent value="interactions" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Drug Interaction Check</CardTitle>
-              <CardDescription>
-                Check for potential interactions between the patient's current medications and a new one.
-              </CardDescription>
+              <CardTitle>Drug Interaction Checker</CardTitle>
+              <CardDescription>Check for interactions between the patient's current medications and a new one.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Current Medications (Loaded)</Label>
-                <Textarea value={currentMedications} readOnly className="bg-muted/50" rows={3} />
+                <Textarea value={currentMedications} readOnly className="bg-muted/50" rows={2} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="new-medication">New Medication</Label>
+                <Label htmlFor="new-medication">New Medication to Check</Label>
                 <Input
                   id="new-medication"
                   value={newMedication}
                   onChange={(e) => setNewMedication(e.target.value)}
-                  placeholder="Enter new drug name"
+                  placeholder="e.g., Lisinopril"
                   disabled={!selectedPatient}
                 />
               </div>
-              <Button onClick={handleDrugInteractionCheck} disabled={isDrugInteractionRunning || !selectedPatient} className="w-full">
-                {isDrugInteractionRunning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Checking...
-                  </>
-                ) : (
-                  "Check for Interactions"
-                )}
+              <Button onClick={handleDrugInteractionCheck} disabled={loading || !selectedPatient} className="w-full">
+                {loading ? "Checking..." : "Check for Interactions"}
               </Button>
             </CardContent>
           </Card>
-          {drugInteractionStatus && (
+          {drugInteractions && (
             <Card>
               <CardHeader>
-                <CardTitle>Interaction Check Status</CardTitle>
+                <CardTitle>Interaction Results</CardTitle>
               </CardHeader>
               <CardContent>
-                {drugInteractionStatus === 'PENDING' && <div className="flex items-center gap-2"><Clock className="w-4 h-4" /><span>Task is pending...</span></div>}
-                {drugInteractionStatus === 'IN_PROGRESS' && <div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /><span>Task is in progress...</span></div>}
-                {drugInteractionStatus === 'COMPLETED' && drugInteractionResult && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4"><CheckCircle className="w-4 h-4 text-green-500" /><span>Task completed.</span></div>
-                    {/* Render drugInteractionResult here */}
-                    <pre className="p-4 bg-muted rounded-md text-sm">{JSON.stringify(drugInteractionResult, null, 2)}</pre>
+                {drugInteractions.interactions.length === 0 ? (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>No significant interactions found.</AlertTitle>
+                  </Alert>
+                ) : (
+                  <div className="space-y-4">
+                    {drugInteractions.interactions.map((interaction, i) => (
+                      <div key={i} className="p-3 border rounded-lg">
+                        <h4 className="font-semibold flex items-center">
+                          <AlertTriangle className="w-5 h-5 mr-2 text-destructive" />
+                          Interaction: {interaction.drug1} & {interaction.drug2}
+                          <Badge variant="destructive" className="ml-auto">{interaction.severity}</Badge>
+                        </h4>
+                        <p className="mt-2"><strong>Description:</strong> {interaction.description}</p>
+                        <p><strong>Management:</strong> {interaction.management}</p>
+                      </div>
+                    ))}
                   </div>
-                )}
-                {drugInteractionStatus === 'FAILED' && (
-                  <div className="flex items-center gap-2"><XCircle className="w-4 h-4 text-red-500" /><span>Task failed: {drugInteractionError}</span></div>
                 )}
               </CardContent>
             </Card>
           )}
         </TabsContent>
+
         <TabsContent value="diagnostics" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Diagnostic Assistance</CardTitle>
-              <CardDescription>
-                This feature has not been updated to the new asynchronous model yet.
-              </CardDescription>
+              <CardDescription>Use patient data to generate diagnostic suggestions.</CardDescription>
             </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This tool uses the patient's loaded medical history and current symptoms to suggest potential diagnoses.
+              </p>
+              <Button onClick={handleDiagnosticAssistance} disabled={loading || !selectedPatient} className="w-full">
+                {loading ? "Getting Suggestions..." : "Get Diagnostic Assistance"}
+              </Button>
+            </CardContent>
           </Card>
+
+          {diagnosticSuggestions && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Diagnostic Suggestions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="whitespace-pre-wrap text-sm font-mono bg-muted/50 p-4 rounded-lg">
+                  {diagnosticSuggestions}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
