@@ -97,6 +97,8 @@ export function ClinicalAIAssistant() {
   const [patientMrn, setPatientMrn] = useState("")
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [isFetchingPatient, setIsFetchingPatient] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [diagnosticSuggestions, setDiagnosticSuggestions] = useState("")
 
   const [symptoms, setSymptoms] = useState("")
   const [medicalHistory, setMedicalHistory] = useState("")
@@ -301,6 +303,7 @@ export function ClinicalAIAssistant() {
 
   // Other handlers (handleDrugInteractionCheck, handleDiagnosticAssistance) would be refactored similarly
 
+  const isAssessmentRunning = assessmentStatus === 'PENDING' || assessmentStatus === 'IN_PROGRESS'
   const isDrugInteractionRunning = drugInteractionStatus === 'PENDING' || drugInteractionStatus === 'IN_PROGRESS'
 
   return (
