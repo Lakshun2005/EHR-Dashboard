@@ -32,9 +32,9 @@ export default function MedicalRecordsPage() {
 
     const supabase = createClient()
     const { data: patientData, error: patientError } = await supabase
-      .from("patients")
+      .from("Patient")
       .select()
-      .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,medical_record_number.ilike.%${searchTerm}%`)
+      .or(`firstName.ilike.%${searchTerm}%,lastName.ilike.%${searchTerm}%,medicalRecordNumber.ilike.%${searchTerm}%`)
       .single()
 
     if (patientError || !patientData) {
@@ -46,10 +46,10 @@ export default function MedicalRecordsPage() {
     setPatient(patientData)
 
     const { data: recordsData, error: recordsError } = await supabase
-      .from("medical_history")
-      .select()
-      .eq("patient_id", patientData.id)
-      .order("diagnosis_date", { ascending: false })
+      .from("MedicalHistory")
+      .select("id, diagnosis, diagnosisDate, treatment")
+      .eq("patientId", patientData.id)
+      .order("diagnosisDate", { ascending: false })
 
     if (recordsError) {
       setError("Could not fetch medical records.")
@@ -106,20 +106,18 @@ export default function MedicalRecordsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Condition</TableHead>
+                  <TableHead>Diagnosis</TableHead>
                   <TableHead>Diagnosis Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Severity</TableHead>
+                  <TableHead>Treatment</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {records.length > 0 ? (
                   records.map((record) => (
                     <TableRow key={record.id}>
-                      <TableCell className="font-medium">{record.condition_name}</TableCell>
-                      <TableCell>{new Date(record.diagnosis_date).toLocaleDateString()}</TableCell>
-                      <TableCell><Badge variant="secondary">{record.status}</Badge></TableCell>
-                      <TableCell><Badge variant="outline">{record.severity}</Badge></TableCell>
+                      <TableCell className="font-medium">{record.diagnosis}</TableCell>
+                      <TableCell>{new Date(record.diagnosisDate).toLocaleDateString()}</TableCell>
+                      <TableCell>{record.treatment || "N/A"}</TableCell>
                     </TableRow>
                   ))
                 ) : (

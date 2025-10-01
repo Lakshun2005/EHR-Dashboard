@@ -8,13 +8,14 @@ export async function GET(request: NextRequest) {
 
   try {
     let query = supabase
-      .from("messages")
+      .from("Message")
       .select(`
-        *,
-        sender:profiles!messages_sender_id_fkey(id, full_name, role),
-        conversation:conversations(id, name, type)
+        id,
+        content,
+        createdAt,
+        sender:User!Message_senderId_fkey(id, firstName, lastName, role)
       `)
-      .order("created_at", { ascending: true })
+      .order("createdAt", { ascending: true })
 
     if (conversationId) {
       query = query.eq("conversation_id", conversationId)
@@ -44,16 +45,17 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: message, error } = await supabase
-      .from("messages")
+      .from("Message")
       .insert({
-        conversation_id,
-        sender_id: user.id,
+        conversationId: conversation_id,
+        senderId: user.id,
         content,
-        message_type,
       })
       .select(`
-        *,
-        sender:profiles!messages_sender_id_fkey(id, full_name, role)
+        id,
+        content,
+        createdAt,
+        sender:User!Message_senderId_fkey(id, firstName, lastName, role)
       `)
       .single()
 

@@ -3,12 +3,12 @@ import prisma from "@/lib/prisma"
 import { EncounterType } from "@prisma/client"
 
 async function getKpis() {
-  const totalPatients = await prisma.patient.count()
-  const occupiedBeds = await prisma.bed.count({ where: { isOccupied: true } })
-  const totalBeds = await prisma.bed.count()
+  const totalPatients = await prisma.Patient.count()
+  const occupiedBeds = await prisma.Bed.count({ where: { isOccupied: true } })
+  const totalBeds = await prisma.Bed.count()
   const bedOccupancy = totalBeds > 0 ? (occupiedBeds / totalBeds) * 100 : 0
 
-  const encounters = await prisma.encounter.findMany({
+  const encounters = await prisma.Encounter.findMany({
     where: {
       startTime: { not: null },
       endTime: { not: null },
@@ -38,7 +38,7 @@ async function getKpis() {
 }
 
 async function getPatientVolume() {
-  const encounters = await prisma.encounter.groupBy({
+  const encounters = await prisma.Encounter.groupBy({
     by: ["type", "startTime"],
     _count: {
       id: true,
@@ -65,7 +65,7 @@ async function getPatientVolume() {
 }
 
 async function getDiagnosisDistribution() {
-  const diagnosisCounts = await prisma.medicalHistory.groupBy({
+  const diagnosisCounts = await prisma.MedicalHistory.groupBy({
     by: ["diagnosis"],
     _count: {
       id: true,
@@ -78,7 +78,7 @@ async function getDiagnosisDistribution() {
     take: 5,
   })
 
-  const totalDiagnoses = await prisma.medicalHistory.count()
+  const totalDiagnoses = await prisma.MedicalHistory.count()
   const colors = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#6b7280"]
 
   const distribution = diagnosisCounts.map((item, index) => ({
@@ -103,7 +103,7 @@ async function getDiagnosisDistribution() {
 }
 
 async function getDepartmentMetrics() {
-    const departmentData = await prisma.department.findMany({
+    const departmentData = await prisma.Department.findMany({
         include: {
             _count: {
                 select: {

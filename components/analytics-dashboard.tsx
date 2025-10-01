@@ -183,10 +183,6 @@ export function AnalyticsDashboard() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Patients</p>
                     <p className="text-2xl font-bold">{kpis?.totalPatients}</p>
-                    <p className="text-xs text-chart-2 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      +12% from last month
-                    </p>
                   </div>
                   <Users className="w-8 h-8 text-muted-foreground" />
                 </div>
@@ -199,10 +195,6 @@ export function AnalyticsDashboard() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg Patient Satisfaction</p>
                     <p className="text-2xl font-bold">{kpis?.avgSatisfaction}/5</p>
-                    <p className="text-xs text-chart-2 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      +0.2 from last month
-                    </p>
                   </div>
                   <Heart className="w-8 h-8 text-muted-foreground" />
                 </div>
@@ -215,10 +207,6 @@ export function AnalyticsDashboard() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Bed Occupancy</p>
                     <p className="text-2xl font-bold">{kpis?.bedOccupancy}%</p>
-                    <p className="text-xs text-chart-3 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      +3% from last week
-                    </p>
                   </div>
                   <Activity className="w-8 h-8 text-muted-foreground" />
                 </div>
@@ -231,10 +219,6 @@ export function AnalyticsDashboard() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg Length of Stay</p>
                     <p className="text-2xl font-bold">{kpis?.avgStay} days</p>
-                    <p className="text-xs text-chart-2 flex items-center gap-1">
-                      <TrendingDown className="w-3 h-3" />
-                      -0.4 from last month
-                    </p>
                   </div>
                   <Clock className="w-8 h-8 text-muted-foreground" />
                 </div>

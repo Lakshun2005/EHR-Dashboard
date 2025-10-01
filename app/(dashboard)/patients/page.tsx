@@ -198,10 +198,26 @@ export default function PatientsPage() {
                             <Button variant="ghost" size="icon" className="w-8 h-8"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEditPatient(patient)}>Edit Record</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditPatient(patient)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              <span>Edit Patient Details</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Activity className="mr-2 h-4 w-4" />
+                              <span>View Medical History</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Clock className="mr-2 h-4 w-4" />
+                              <span>Schedule Appointment</span>
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleDeletePatient(patient.id)}>Delete Patient</DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-700"
+                              onClick={() => handleDeletePatient(patient.id)}
+                            >
+                              <AlertTriangle className="mr-2 h-4 w-4" />
+                              <span>Delete Patient</span>
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

@@ -9,14 +9,17 @@ export async function GET(request: NextRequest) {
 
   try {
     let query = supabase
-      .from("tasks")
+      .from("Task")
       .select(`
-        *,
-        assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, role),
-        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, role),
-        patient:patients(id, first_name, last_name, medical_record_number)
+        id,
+        title,
+        description,
+        status,
+        dueDate,
+        assignee:User!Task_assigneeId_fkey(id, firstName, lastName),
+        patient:Patient(id, firstName, lastName, medicalRecordNumber)
       `)
-      .order("created_at", { ascending: false })
+      .order("createdAt", { ascending: false })
 
     if (status) {
       query = query.eq("status", status)
@@ -38,7 +41,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
-  const { title, description, priority, assigned_to, patient_id, due_date } = await request.json()
+  const { title, description, status, dueDate, assigneeId, patientId } = await request.json()
 
   try {
     const {
@@ -49,22 +52,23 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: task, error } = await supabase
-      .from("tasks")
+      .from("Task")
       .insert({
         title,
         description,
-        priority,
-        assigned_to,
-        patient_id,
-        due_date,
-        created_by: user.id,
-        status: "pending",
+        status,
+        dueDate,
+        assigneeId,
+        patientId,
       })
       .select(`
-        *,
-        assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, role),
-        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, role),
-        patient:patients(id, first_name, last_name, medical_record_number)
+        id,
+        title,
+        description,
+        status,
+        dueDate,
+        assignee:User!Task_assigneeId_fkey(id, firstName, lastName),
+        patient:Patient(id, firstName, lastName, medicalRecordNumber)
       `)
       .single()
 
@@ -79,18 +83,21 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const supabase = createClient()
-  const { id, status, ...updates } = await request.json()
+  const { id, ...updates } = await request.json()
 
   try {
     const { data: task, error } = await supabase
-      .from("tasks")
-      .update({ status, ...updates })
+      .from("Task")
+      .update(updates)
       .eq("id", id)
       .select(`
-        *,
-        assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, role),
-        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, role),
-        patient:patients(id, first_name, last_name, medical_record_number)
+        id,
+        title,
+        description,
+        status,
+        dueDate,
+        assignee:User!Task_assigneeId_fkey(id, firstName, lastName),
+        patient:Patient(id, firstName, lastName, medicalRecordNumber)
       `)
       .single()
 

@@ -84,65 +84,80 @@ export default function Dashboard() {
     setLoading(true)
     const supabase = createClient()
 
-    // Fetch recent patients
-    let patientQuery = supabase
-      .from("patients")
-      .select("*, medical_history(*)")
-      .order("created_at", { ascending: false })
-      .limit(5)
+    try {
+      // Fetch metrics in parallel
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
 
-    if (activeFilter !== "all") {
-      // This is a simplified filter. A real implementation would be more complex.
-      // We are filtering on a nested table, which Supabase handles well.
-      patientQuery = patientQuery.eq("medical_history.status", activeFilter)
-    }
+      const [
+        { count: totalPatients, error: patientError },
+        { count: todaysAppointments, error: appointmentError },
+        { count: criticalAlerts, error: criticalAlertsError },
+        { data: providers, error: providerError },
+        { data: recentPatients, error: recentPatientsError },
+      ] = await Promise.all([
+        supabase.from("Patient").select("*", { count: "exact", head: true }),
+        supabase
+          .from("Encounter")
+          .select("*", { count: "exact", head: true })
+          .gte("startTime", today.toISOString())
+          .lt("startTime", tomorrow.toISOString()),
+        supabase.from("Patient").select("*", { count: "exact", head: true }).eq("riskLevel", "CRITICAL"),
+        supabase
+          .from("User")
+          .select("id, firstName, lastName, role")
+          .in("role", ["PHYSICIAN", "NURSE", "SPECIALIST"])
+          .limit(4),
+        supabase
+          .from("Patient")
+          .select("id, medicalRecordNumber, firstName, lastName, dateOfBirth, createdAt, status, riskLevel, MedicalHistory(diagnosis)")
+          .order("createdAt", { ascending: false })
+          .limit(5),
+      ])
 
-    const { data: patientData, error: patientError } = await patientQuery
+      if (patientError || appointmentError || criticalAlertsError || providerError || recentPatientsError) {
+        toast.error("Failed to load some dashboard data.")
+        console.error({ patientError, appointmentError, criticalAlertsError, providerError, recentPatientsError })
+      }
 
-    if (patientError) {
-      console.error("Error loading patients:", patientError)
-      toast.error("Failed to load recent patients.")
-    } else {
-      const transformedPatients = patientData.map((p) => {
-        const latestHistory = p.medical_history?.[0]
-        return {
-          id: p.id,
-          mrn: p.medical_record_number,
-          name: `${p.first_name} ${p.last_name}`,
-          age: new Date().getFullYear() - new Date(p.date_of_birth).getFullYear(),
-          lastVisit: new Date(p.created_at).toLocaleDateString(),
-          condition: latestHistory?.diagnosis || "N/A",
-          status: latestHistory?.status || "unknown",
-          riskLevel: latestHistory?.severity || "low",
-        }
+      // Process and set metrics
+      setMetrics({
+        totalPatients: { value: totalPatients ?? 0, change: 15 }, // Mock change
+        todaysAppointments: { value: todaysAppointments ?? 0, change: 5 }, // Mock change
+        criticalAlerts: { value: criticalAlerts ?? 0, change: -2 }, // Mock change
+        activeProviders: { value: providers?.length ?? 0, change: 1 }, // Mock change
       })
+
+      // Process and set providers
+      setProviders(
+        providers?.map((p) => ({
+          ...p,
+          status: "online", // Mock status
+          availability: p.role,
+        })) ?? []
+      )
+
+      // Process and set recent patients
+      const transformedPatients =
+        recentPatients?.map((p) => ({
+          id: p.id,
+          mrn: p.medicalRecordNumber,
+          name: `${p.firstName} ${p.lastName}`,
+          age: new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear(),
+          lastVisit: new Date(p.createdAt).toLocaleDateString(),
+          condition: p.MedicalHistory?.[0]?.diagnosis || "N/A",
+          status: p.status.toLowerCase(),
+          riskLevel: p.riskLevel.toLowerCase(),
+        })) ?? []
       setPatients(transformedPatients)
+    } catch (error) {
+      console.error("Error loading dashboard data:", error)
+      toast.error("An unexpected error occurred while loading the dashboard.")
+    } finally {
+      setLoading(false)
     }
-
-    // Fetch providers
-    const { data: providerData, error: providerError } = await supabase
-      .from("profiles")
-      .select("*")
-      .limit(4)
-
-    if (providerError) {
-      console.error("Error loading providers:", providerError)
-      toast.error("Failed to load healthcare team.")
-    } else {
-      setProviders(providerData)
-    }
-
-    // Fetch metrics
-    const { data: patientCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
-    const { data: providerCount } = await supabase.from("profiles").select("*", { count: "exact", head: true })
-
-    setMetrics((prev) => ({
-      ...prev,
-      totalPatients: { value: patientCount ?? 0, change: 23 }, // Mock change
-      activeProviders: { value: providerCount ?? 0, change: 1 }, // Mock change
-    }))
-
-    setLoading(false)
   }
 
   useEffect(() => {

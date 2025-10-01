@@ -60,11 +60,11 @@ export function EditPatientDialog({ patient, open, onOpenChange, onPatientUpdate
         throw new Error(errorData.error || "Could not update patient")
       }
 
-      toast.success("Patient updated successfully.")
+      toast.success(`Patient "${formData.firstName} ${formData.lastName}" updated successfully.`)
       onPatientUpdated()
       onOpenChange(false)
     } catch (error) {
-      toast.error(error.message)
+      toast.error((error as Error).message)
     } finally {
       setIsSubmitting(false)
     }
@@ -72,7 +72,7 @@ export function EditPatientDialog({ patient, open, onOpenChange, onPatientUpdate
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Edit Patient Record</DialogTitle>
           <DialogDescription>
@@ -81,45 +81,37 @@ export function EditPatientDialog({ patient, open, onOpenChange, onPatientUpdate
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="first_name" className="text-right">
-                First Name
-              </Label>
-              <Input
-                id="first_name"
-                value={formData.first_name}
-                onChange={handleChange}
-                className="col-span-3"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input id="firstName" value={formData.firstName} onChange={handleChange} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input id="lastName" value={formData.lastName} onChange={handleChange} required />
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="last_name" className="text-right">
-                Last Name
-              </Label>
-              <Input
-                id="last_name"
-                value={formData.last_name}
-                onChange={handleChange}
-                className="col-span-3"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Input id="dateOfBirth" type="date" value={formData.dateOfBirth} onChange={handleChange} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Gender</Label>
+                <Input id="gender" value={formData.gender} onChange={handleChange} />
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="date_of_birth" className="text-right">
-                Date of Birth
-              </Label>
-              <Input
-                id="date_of_birth"
-                type="date"
-                value={formData.date_of_birth}
-                onChange={handleChange}
-                className="col-span-3"
-                required
-              />
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input id="email" type="email" value={formData.email} onChange={handleChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} />
             </div>
           </div>
           <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : "Save Changes"}
             </Button>

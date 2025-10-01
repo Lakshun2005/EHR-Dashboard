@@ -24,18 +24,17 @@ export default function AppointmentsPage() {
     setLoading(true)
     const supabase = createClient()
     const { data, error } = await supabase
-      .from("appointments")
+      .from("Encounter")
       .select(`
         id,
-        appointment_date,
-        duration_minutes,
-        appointment_type,
+        startTime,
+        type,
         status,
-        chief_complaint,
-        patient:patients(first_name, last_name),
-        provider:profiles(first_name, last_name)
+        reason,
+        patient:Patient(firstName, lastName),
+        provider:User(firstName, lastName)
       `)
-      .order("appointment_date", { ascending: false })
+      .order("startTime", { ascending: false })
 
     if (error) {
       console.error("Error loading appointments:", error)
@@ -94,12 +93,12 @@ export default function AppointmentsPage() {
               ) : (
                 appointments.map((appt) => (
                   <TableRow key={appt.id} className="hover:bg-muted/50">
-                    <TableCell>{formatDateTime(appt.appointment_date)}</TableCell>
-                    <TableCell>{`${appt.patient.first_name} ${appt.patient.last_name}`}</TableCell>
-                    <TableCell>{`Dr. ${appt.provider.first_name} ${appt.provider.last_name}`}</TableCell>
-                    <TableCell>{appt.appointment_type}</TableCell>
+                    <TableCell>{formatDateTime(appt.startTime)}</TableCell>
+                    <TableCell>{`${appt.patient.firstName} ${appt.patient.lastName}`}</TableCell>
+                    <TableCell>{`${appt.provider.firstName} ${appt.provider.lastName}`}</TableCell>
+                    <TableCell>{appt.type}</TableCell>
                     <TableCell>
-                      <Badge variant={appt.status === 'completed' ? 'default' : 'secondary'}>
+                      <Badge variant={appt.status === 'COMPLETED' ? 'default' : 'secondary'}>
                         {appt.status}
                       </Badge>
                     </TableCell>

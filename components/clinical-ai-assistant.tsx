@@ -25,6 +25,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { Download } from "lucide-react"
+
 // NOTE: The interfaces for AI responses remain the same.
 
 import { useEffect } from "react"
@@ -37,7 +39,10 @@ function useAITask(taskId: string | null) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!taskId) return
+    if (!taskId) {
+      setStatus(null)
+      return
+    }
 
     setStatus("PENDING")
     setResult(null)
@@ -61,6 +66,8 @@ function useAITask(taskId: string | null) {
             setError(task.error)
             toast.error("AI task failed.", { description: task.error })
           }
+        } else {
+          setStatus(task.status) // Keep updating status for IN_PROGRESS
         }
       } catch (e) {
         clearInterval(intervalId)
@@ -70,22 +77,135 @@ function useAITask(taskId: string | null) {
       }
     }, 3000) // Poll every 3 seconds
 
+    // Timeout to prevent infinite polling
     const timeoutId = setTimeout(() => {
-        clearInterval(intervalId);
-        if (status !== 'COMPLETED' && status !== 'FAILED') {
-            setStatus('FAILED');
-            setError('Task timed out.');
-            toast.error('Task timed out after 2 minutes.');
+      clearInterval(intervalId)
+      setStatus(currentStatus => {
+        if (currentStatus !== "COMPLETED" && currentStatus !== "FAILED") {
+          setError("Task timed out after 2 minutes.")
+          toast.error("Task timed out.")
+          return "FAILED"
         }
-    }, 120000); // 2 minute timeout
+        return currentStatus
+      })
+    }, 120000)
 
     return () => {
-        clearInterval(intervalId)
-        clearTimeout(timeoutId)
+      clearInterval(intervalId)
+      clearTimeout(timeoutId)
     }
   }, [taskId])
 
   return { status, result, error, setStatus }
+}
+
+function TaskStatusDisplay({ status, error, result, taskName, ResultComponent, patient }) {
+  if (!status) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{taskName} Status</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {status === "PENDING" && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="w-4 h-4" />
+            <span>Task is pending...</span>
+          </div>
+        )}
+        {status === "IN_PROGRESS" && (
+          <div className="flex items-center gap-2 text-blue-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Task is in progress...</span>
+          </div>
+        )}
+        {status === "COMPLETED" && result && (
+          <div>
+            <div className="flex items-center gap-2 text-green-600 mb-4">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-semibold">Task completed successfully.</span>
+            </div>
+            <ResultComponent result={result} patient={patient} />
+          </div>
+        )}
+        {status === "FAILED" && (
+          <div className="flex items-center gap-2 text-red-600">
+            <XCircle className="w-5 h-5" />
+            <span>
+              Task failed: {error || "An unknown error occurred."}
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AssessmentResultDisplay({ result, patient }) {
+  const handleDownload = () => {
+    if (!result) {
+      toast.error("No assessment data to download.");
+      return;
+    }
+    const content = JSON.stringify(result, null, 2);
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const patientIdentifier = patient?.medicalRecordNumber || patient?.id || "assessment";
+    link.download = `clinical-assessment-${patientIdentifier}-${new Date().toISOString()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Assessment download started.");
+  }
+
+  const riskColor = {
+    low: "bg-green-100 text-green-800",
+    medium: "bg-yellow-100 text-yellow-800",
+    high: "bg-orange-100 text-orange-800",
+    critical: "bg-red-100 text-red-800",
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold text-foreground">Clinical Assessment</h3>
+        <Button variant="outline" size="sm" onClick={handleDownload}>
+          <Download className="w-4 h-4 mr-2" />
+          Download JSON
+        </Button>
+      </div>
+      <Alert variant={result.riskLevel}>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Overall Risk Level: {result.riskLevel.toUpperCase()}</AlertTitle>
+        <AlertDescription>
+          The patient is assessed to be at a {result.riskLevel} risk level based on the provided data.
+        </AlertDescription>
+      </Alert>
+      {/* ... more UI for assessment results */}
+    </div>
+  )
+}
+
+function DrugInteractionResultDisplay({ result }) {
+  const severityColor = {
+    low: "bg-green-100 text-green-800",
+    medium: "bg-yellow-100 text-yellow-800",
+    high: "bg-red-100 text-red-800",
+  }
+  return (
+    <div className="space-y-6">
+      <h3 className="text-xl font-bold text-foreground">Drug Interaction Analysis</h3>
+      <Alert variant={result.overallRisk === 'high' ? 'destructive' : 'default'}>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Overall Interaction Risk: {result.overallRisk.toUpperCase()}</AlertTitle>
+      </Alert>
+      {/* ... more UI for drug interaction results */}
+    </div>
+  )
 }
 
 
@@ -109,6 +229,10 @@ export function ClinicalAIAssistant() {
 
   const [drugInteractionTaskId, setDrugInteractionTaskId] = useState<string | null>(null)
   const { status: drugInteractionStatus, result: drugInteractionResult, error: drugInteractionError, setStatus: setDrugInteractionStatus } = useAITask(drugInteractionTaskId)
+
+  const [diagnosticPrompt, setDiagnosticPrompt] = useState("")
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [diagnosticStream, setDiagnosticStream] = useState("")
 
   useEffect(() => {
     if (assessmentResult) {
@@ -242,6 +366,40 @@ export function ClinicalAIAssistant() {
 
   const isDrugInteractionRunning = drugInteractionStatus === 'PENDING' || drugInteractionStatus === 'IN_PROGRESS'
 
+  const handleDiagnosticAnalysis = async () => {
+    setIsStreaming(true)
+    setDiagnosticStream("")
+    try {
+      const response = await fetch("/api/clinical-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "diagnostic_assistance",
+          data: {
+            patientHistory: medicalHistory,
+            symptoms: diagnosticPrompt,
+          },
+        }),
+      })
+
+      if (!response.body) {
+        throw new Error("No response body")
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        setDiagnosticStream((prev) => prev + decoder.decode(value))
+      }
+    } catch (error) {
+      toast.error("Failed to get diagnostic analysis.")
+    } finally {
+      setIsStreaming(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -353,25 +511,16 @@ export function ClinicalAIAssistant() {
               </Button>
             </CardContent>
           </Card>
-          {assessmentStatus && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Assessment Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {assessmentStatus === 'PENDING' && <div className="flex items-center gap-2"><Clock className="w-4 h-4" /><span>Task is pending...</span></div>}
-                {assessmentStatus === 'IN_PROGRESS' && <div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /><span>Task is in progress...</span></div>}
-                {assessmentStatus === 'COMPLETED' && assessmentResult && (
-                  <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /><span>Task completed.</span></div>
-                  // Display assessmentResult here
-                )}
-                {assessmentStatus === 'FAILED' && (
-                  <div className="flex items-center gap-2"><XCircle className="w-4 h-4 text-red-500" /><span>Task failed: {assessmentError}</span></div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          <TaskStatusDisplay
+            status={assessmentStatus}
+            error={assessmentError}
+            result={assessmentResult}
+            patient={selectedPatient}
+            taskName="Clinical Assessment"
+            ResultComponent={AssessmentResultDisplay}
+          />
         </TabsContent>
+
         <TabsContent value="interactions" className="space-y-6">
           <Card>
             <CardHeader>
@@ -407,37 +556,59 @@ export function ClinicalAIAssistant() {
               </Button>
             </CardContent>
           </Card>
-          {drugInteractionStatus && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Interaction Check Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {drugInteractionStatus === 'PENDING' && <div className="flex items-center gap-2"><Clock className="w-4 h-4" /><span>Task is pending...</span></div>}
-                {drugInteractionStatus === 'IN_PROGRESS' && <div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /><span>Task is in progress...</span></div>}
-                {drugInteractionStatus === 'COMPLETED' && drugInteractionResult && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4"><CheckCircle className="w-4 h-4 text-green-500" /><span>Task completed.</span></div>
-                    {/* Render drugInteractionResult here */}
-                    <pre className="p-4 bg-muted rounded-md text-sm">{JSON.stringify(drugInteractionResult, null, 2)}</pre>
-                  </div>
-                )}
-                {drugInteractionStatus === 'FAILED' && (
-                  <div className="flex items-center gap-2"><XCircle className="w-4 h-4 text-red-500" /><span>Task failed: {drugInteractionError}</span></div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+           <TaskStatusDisplay
+            status={drugInteractionStatus}
+            error={drugInteractionError}
+            result={drugInteractionResult}
+            patient={selectedPatient}
+            taskName="Drug Interaction Check"
+            ResultComponent={DrugInteractionResultDisplay}
+          />
         </TabsContent>
         <TabsContent value="diagnostics" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Diagnostic Assistance</CardTitle>
               <CardDescription>
-                This feature has not been updated to the new asynchronous model yet.
+                Describe the patient's case for AI-powered diagnostic suggestions.
               </CardDescription>
             </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="diagnostic-prompt">Case Description</Label>
+                <Textarea
+                  id="diagnostic-prompt"
+                  value={diagnosticPrompt}
+                  onChange={(e) => setDiagnosticPrompt(e.target.value)}
+                  placeholder="Provide a summary of the patient's symptoms, history, and findings..."
+                  rows={6}
+                  disabled={isStreaming}
+                />
+              </div>
+              <Button onClick={handleDiagnosticAnalysis} disabled={isStreaming || !diagnosticPrompt} className="w-full">
+                {isStreaming ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  "Get Diagnostic Ideas"
+                )}
+              </Button>
+            </CardContent>
           </Card>
+          {diagnosticStream && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Diagnostic Stream</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="whitespace-pre-wrap text-sm font-mono p-4 bg-muted rounded-lg">
+                  {diagnosticStream}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

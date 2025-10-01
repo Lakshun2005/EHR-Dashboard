@@ -322,6 +322,9 @@ model Task {
 
   assigneeId String
   assignee   User   @relation(fields: [assigneeId], references: [id])
+
+  patientId  String?
+  patient    Patient? @relation(fields: [patientId], references: [id])
 }
 
 model BackgroundTask {
