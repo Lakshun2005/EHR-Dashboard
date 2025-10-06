@@ -22,6 +22,13 @@ enum Role {
   OTHER
 }
 
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
 enum EncounterType {
   INPATIENT
   OUTPATIENT
@@ -67,7 +74,8 @@ enum EquipmentStatus {
 
 // --- AUTH & USER MANAGEMENT ---
 
-model User {
+// Profile model linked to Supabase auth.users table
+model Profile {
   id            String    @id @default(uuid()) // Corresponds to Supabase auth.users.id
   email         String    @unique
   firstName     String?
@@ -85,6 +93,7 @@ model User {
   conversations       Conversation[]  @relation("ConversationMembers")
   attendedEncounters  Encounter[]
   backgroundTasks     BackgroundTask[]
+  appointments        Appointment[]   @relation("ProviderAppointments")
 }
 
 // --- CORE PATIENT MODELS ---
@@ -105,7 +114,7 @@ model Patient {
   updatedAt            DateTime   @updatedAt
 
   primaryPhysicianId  String?
-  primaryPhysician    User?           @relation("PrimaryPhysician", fields: [primaryPhysicianId], references: [id])
+  primaryPhysician    Profile?           @relation("PrimaryPhysician", fields: [primaryPhysicianId], references: [id])
 
   encounters      Encounter[]
   clinicalNotes   ClinicalNote[]
@@ -115,11 +124,27 @@ model Patient {
   allergies       Allergy[]
   labResults      LabResult[]
   procedures      Procedure[]
+  appointments    Appointment[]
 
   @@index([firstName])
   @@index([lastName])
   @@index([medicalRecordNumber])
   @@index([createdAt])
+}
+
+model Appointment {
+  id          String            @id @default(uuid())
+  patientId   String
+  patient     Patient           @relation(fields: [patientId], references: [id])
+  providerId  String
+  provider    Profile           @relation("ProviderAppointments", fields: [providerId], references: [id])
+  appointmentDateTime DateTime
+  durationMinutes Int
+  reason      String?
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?           @db.Text
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 }
 
 model Encounter {
@@ -135,7 +160,7 @@ model Encounter {
   patientId   String
   patient     Patient   @relation(fields: [patientId], references: [id])
   providerId  String
-  provider    User      @relation(fields: [providerId], references: [id])
+  provider    Profile      @relation(fields: [providerId], references: [id])
   departmentId String
   department  Department @relation(fields: [departmentId], references: [id])
 
@@ -158,7 +183,7 @@ model ClinicalNote {
   patientId String
   patient   Patient @relation(fields: [patientId], references: [id])
   authorId  String
-  author    User    @relation(fields: [authorId], references: [id])
+  author    Profile    @relation(fields: [authorId], references: [id])
   encounterId String?
   encounter Encounter? @relation(fields: [encounterId], references: [id])
 }
@@ -284,7 +309,7 @@ model StaffSchedule {
   endTime   DateTime
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   Profile   @relation(fields: [userId], references: [id])
 }
 
 // --- COMMUNICATION & WORKFLOW ---
@@ -295,7 +320,7 @@ model Conversation {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  members   User[]    @relation("ConversationMembers")
+  members   Profile[]    @relation("ConversationMembers")
   messages  Message[]
 }
 
@@ -305,7 +330,7 @@ model Message {
   createdAt DateTime @default(now())
 
   senderId  String
-  sender    User   @relation("SentMessages", fields: [senderId], references: [id])
+  sender    Profile   @relation("SentMessages", fields: [senderId], references: [id])
 
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
@@ -321,7 +346,7 @@ model Task {
   updatedAt   DateTime   @updatedAt
 
   assigneeId String
-  assignee   User   @relation(fields: [assigneeId], references: [id])
+  assignee   Profile   @relation(fields: [assigneeId], references: [id])
 }
 
 model BackgroundTask {
@@ -334,7 +359,7 @@ model BackgroundTask {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   userId    String
-  user      User       @relation(fields: [userId], references: [id])
+  user      Profile       @relation(fields: [userId], references: [id])
 }
 
 // --- COMPLIANCE & AUDITING ---
@@ -348,5 +373,5 @@ model AuditLog {
   details   Json?
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   Profile   @relation(fields: [userId], references: [id])
 }
