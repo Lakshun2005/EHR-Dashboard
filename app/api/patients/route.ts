@@ -1,94 +1,51 @@
-import { NextResponse } from "next/server"
-import prisma from "@/lib/prisma"
+import { NextResponse } from 'next/server';
+import * as patientService from '@/lib/services/patient.service';
+import { z } from 'zod';
+
+// Schema for creating a patient to validate the request body
+const createPatientSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Invalid email address"),
+  dateOfBirth: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid date format" }),
+  // Add other fields as necessary from your Prisma schema
+});
+
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const searchTerm = searchParams.get("searchTerm") || ""
-    const page = parseInt(searchParams.get("page") || "1")
-    const limit = parseInt(searchParams.get("limit") || "10")
-    const skip = (page - 1) * limit
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const search = searchParams.get('search') || '';
 
-    const whereClause = {
-      OR: [
-        { firstName: { contains: searchTerm, mode: "insensitive" } },
-        { lastName: { contains: searchTerm, mode: "insensitive" } },
-        { medicalRecordNumber: { contains: searchTerm, mode: "insensitive" } },
-      ],
-    }
-
-    const [patients, totalPatients] = await prisma.$transaction([
-      prisma.patient.findMany({
-        where: whereClause,
-        select: {
-          id: true,
-          medicalRecordNumber: true,
-          firstName: true,
-          lastName: true,
-          dateOfBirth: true,
-          createdAt: true,
-          riskLevel: true,
-          medicalHistory: {
-            select: {
-              diagnosis: true,
-            },
-            orderBy: {
-              diagnosisDate: "desc",
-            },
-            take: 1,
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: limit,
-        skip: skip,
-      }),
-      prisma.patient.count({ where: whereClause }),
-    ])
-
-    const transformedPatients = patients.map(patient => {
-      const latestHistory = patient.medicalHistory[0]
-      return {
-        id: patient.id,
-        mrn: patient.medicalRecordNumber,
-        name: `${patient.firstName} ${patient.lastName}`,
-        age: new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear(),
-        lastVisit: new Date(patient.createdAt).toISOString().split("T")[0],
-        status: latestHistory?.diagnosis || "Unknown",
-        riskLevel: patient.riskLevel,
-      }
-    })
-
-    return NextResponse.json({
-      data: transformedPatients,
-      total: totalPatients,
-      page,
-      limit,
-    })
+    const result = await patientService.listPatients({ page, limit, search });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Error fetching patients:", error)
-    return NextResponse.json({ error: "Failed to fetch patients" }, { status: 500 })
+    console.error('[PATIENTS_GET]', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const { firstName, lastName, dateOfBirth, gender } = body
+    const body = await request.json();
+    const validation = createPatientSchema.safeParse(body);
 
-    const newPatient = await prisma.patient.create({
-      data: {
-        firstName,
-        lastName,
-        dateOfBirth: new Date(dateOfBirth),
-        gender,
-      },
-    })
+    if (!validation.success) {
+        return new NextResponse(JSON.stringify(validation.error.flatten()), { status: 400 });
+    }
 
-    return NextResponse.json(newPatient, { status: 201 })
+    // Convert date string to Date object
+    const patientData = {
+        ...validation.data,
+        dateOfBirth: new Date(validation.data.dateOfBirth),
+    };
+
+    const patient = await patientService.createPatient(patientData);
+    return NextResponse.json(patient, { status: 201 });
   } catch (error) {
-    console.error("Error creating patient:", error)
-    return NextResponse.json({ error: "Failed to create patient" }, { status: 500 })
+    console.error('[PATIENTS_POST]', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

@@ -2,9 +2,10 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChromeIcon } from 'lucide-react';
 import { useState } from 'react';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -28,34 +29,50 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-          <CardDescription>Sign in to access your EHR dashboard.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Button
-              onClick={handleLogin}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? (
-                'Redirecting...'
-              ) : (
-                <>
-                  <ChromeIcon className="w-5 h-5 mr-2" />
-                  Continue with Google
-                </>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="w-full max-w-md p-8 space-y-8">
+        <div className="flex justify-center">
+            <Image
+                src="/placeholder-logo.svg"
+                alt="EHR Dashboard Logo"
+                width={60}
+                height={60}
+            />
+        </div>
+        <Card className="shadow-lg">
+          <CardHeader className="text-center">
+            <CardTitle className="text-3xl font-bold">Welcome</CardTitle>
+            <CardDescription>Sign in to your EHR Dashboard account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Button
+                onClick={handleLogin}
+                disabled={loading}
+                className="w-full text-lg py-6"
+                variant="outline"
+              >
+                {loading ? (
+                  'Redirecting...'
+                ) : (
+                  <>
+                    <ChromeIcon className="w-6 h-6 mr-3" />
+                    Continue with Google
+                  </>
+                )}
+              </Button>
+              {error && (
+                <p className="text-sm text-red-600 text-center pt-2">{error}</p>
               )}
-            </Button>
-            {error && (
-              <p className="text-sm text-red-600 text-center">{error}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+          <CardFooter>
+             <p className="text-xs text-gray-500 text-center w-full">
+                By signing in, you agree to our Terms of Service and Privacy Policy.
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 }
