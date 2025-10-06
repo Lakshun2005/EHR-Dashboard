@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // If user is not logged in and is not on the login page, redirect to login
+  // If user is not logged in and is not on the login page or callback, redirect to login
   if (!session && pathname !== '/login' && !pathname.startsWith('/auth/callback')) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

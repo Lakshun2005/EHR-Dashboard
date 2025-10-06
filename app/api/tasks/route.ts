@@ -1,104 +1,49 @@
-import { createClient } from "@/lib/supabase/server"
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from 'next/server';
+import * as taskService from '@/lib/services/task.service';
+import { z } from 'zod';
+import { TaskStatus } from '@prisma/client';
 
-export async function GET(request: NextRequest) {
-  const supabase = createClient()
-  const { searchParams } = new URL(request.url)
-  const status = searchParams.get("status")
-  const assignedTo = searchParams.get("assigned_to")
+const taskSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  assigneeId: z.string().uuid(),
+  status: z.nativeEnum(TaskStatus).optional(),
+  dueDate: z.string().datetime().optional().nullable(),
+});
 
+export async function GET(request: Request) {
   try {
-    let query = supabase
-      .from("tasks")
-      .select(`
-        *,
-        assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, role),
-        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, role),
-        patient:patients(id, first_name, last_name, medical_record_number)
-      `)
-      .order("created_at", { ascending: false })
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const status = searchParams.get('status') as TaskStatus | undefined;
+    const assigneeId = searchParams.get('assigneeId') || undefined;
 
-    if (status) {
-      query = query.eq("status", status)
-    }
-    if (assignedTo) {
-      query = query.eq("assigned_to", assignedTo)
+    if (status && !Object.values(TaskStatus).includes(status)) {
+        return new NextResponse('Invalid status filter', { status: 400 });
     }
 
-    const { data: tasks, error } = await query
-
-    if (error) throw error
-
-    return NextResponse.json({ tasks })
+    const result = await taskService.listTasks({ page, limit, status, assigneeId });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Error fetching tasks:", error)
-    return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 })
+    console.error('[TASKS_GET]', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
-  const supabase = createClient()
-  const { title, description, priority, assigned_to, patient_id, due_date } = await request.json()
-
+export async function POST(request: Request) {
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const body = await request.json();
+    const validation = taskSchema.safeParse(body);
+
+    if (!validation.success) {
+      return new NextResponse(JSON.stringify(validation.error.flatten()), { status: 400 });
     }
 
-    const { data: task, error } = await supabase
-      .from("tasks")
-      .insert({
-        title,
-        description,
-        priority,
-        assigned_to,
-        patient_id,
-        due_date,
-        created_by: user.id,
-        status: "pending",
-      })
-      .select(`
-        *,
-        assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, role),
-        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, role),
-        patient:patients(id, first_name, last_name, medical_record_number)
-      `)
-      .single()
-
-    if (error) throw error
-
-    return NextResponse.json({ task })
+    const task = await taskService.createTask(validation.data);
+    return NextResponse.json(task, { status: 201 });
   } catch (error) {
-    console.error("Error creating task:", error)
-    return NextResponse.json({ error: "Failed to create task" }, { status: 500 })
-  }
-}
-
-export async function PATCH(request: NextRequest) {
-  const supabase = createClient()
-  const { id, status, ...updates } = await request.json()
-
-  try {
-    const { data: task, error } = await supabase
-      .from("tasks")
-      .update({ status, ...updates })
-      .eq("id", id)
-      .select(`
-        *,
-        assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, role),
-        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, role),
-        patient:patients(id, first_name, last_name, medical_record_number)
-      `)
-      .single()
-
-    if (error) throw error
-
-    return NextResponse.json({ task })
-  } catch (error) {
-    console.error("Error updating task:", error)
-    return NextResponse.json({ error: "Failed to update task" }, { status: 500 })
+    console.error('[TASKS_POST]', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

@@ -11,7 +11,8 @@ async def main():
             await page.goto("http://localhost:3000/login", timeout=60000)
 
             # 2. Wait for the main card and button to be visible
-            login_card = page.get_by_role("heading", name="Welcome Back")
+            # Corrected the heading to match the new design
+            login_card = page.get_by_role("heading", name="Welcome")
             await expect(login_card).to_be_visible(timeout=30000)
 
             google_button = page.get_by_role("button", name="Continue with Google")
